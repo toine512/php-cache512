@@ -131,7 +131,7 @@ class Cache512
 			$fname = $this->_file_mkname($key);
 
 			//Encode data
-			$buffer = json_encode($this->data);
+			$buffer = json_encode($this->data, JSON_UNESCAPED_UNICODE);
 			if($buffer !== false) {
 				//Write data
 				if(file_put_contents($fname, $buffer) !== false) {
