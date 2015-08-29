@@ -42,7 +42,7 @@ class Cache512
 		return '';
 	}
 
-	public function exists($key)
+	public function exists($key, $issue_errors = false)
 	{
 		$this->_error = false;
 
@@ -62,10 +62,15 @@ class Cache512
 				//TTL reached, cleaning the file
 				else
 				{
+					if($issue_errors) {
+						$this->_error = 'Cache expired. (' . $key . ') Deleting ' . $fname . '.';
+					}
 					unlink($fname);
 				}
 			}
-
+			elseif($issue_errors) {
+				$this->_error = 'File doesn\'t exist. (' . $fname .')';
+			}
 			return false;
 
 		/*** APC ***/
@@ -82,15 +87,37 @@ class Cache512
 		{
 			/*** File ***/
 			if($this->_backend == 0) {
-				//Unserialize data
-				$this->data = unserialize(file_get_contents($this->_file_mkname($key)));
-				return true;
+				//Read the cache file
+				$buffer = file_get_contents($this->_file_mkname($key));
+				if($buffer !== false) {
+					//Decode data
+					$buffer = json_decode($buffer, true);
+					if($buffer !== null) {
+						//Only write valid data
+						$this->data = $buffer;
+						return true;
+					}
+					else {
+						$this->_error = 'json_decode() has failed! (' . json_last_error_msg() . ') Corrupted file? (' . $this->_file_mkname($key) . ')';
+					}
+				}
+				else {
+					$this->_error = 'Cannot read file! (' . $this->_file_mkname($key) . ')';
+				}
 
 			/*** APC ***/
 			} elseif($this->_backend == 1) {
-				$this->data = apc_fetch($key);
-				return true;
+				$success = false;
+				$buffer = apc_fetch($key, $success);
+				if($success) {
+					$this->data = $buffer;
+					return true;
+				}
+				$this->_error = 'apc_fetch(' . $key . ') failed!';
 			}
+		}
+		else {
+			$this->_error = 'Requested key doesn\'t exist.';
 		}
 		return false;
 	}
@@ -103,15 +130,36 @@ class Cache512
 		if($this->_backend == 0) {
 			$fname = $this->_file_mkname($key);
 
-			//Write data
-			file_put_contents($fname, serialize($this->data));
-			//Set the expiration timestamp as a future ctime
-			touch($fname, time() + (int) $ttl);
-			return true;
+			//Encode data
+			$buffer = json_encode($this->data);
+			if($buffer !== false) {
+				//Write data
+				if(file_put_contents($fname, $buffer) !== false) {
+					//Set the expiration timestamp as ctime in the future
+					if(touch($fname, time() + (int) $ttl)) {
+						return true;
+					}
+					else {
+						$this->_error = 'Cannot touch ' . $fname . ', cache will not work! (check permissions?)';
+					}
+				}
+				else {
+					$this->_error = 'Cannot write file! (' . $fname . ')';
+				}
+			}
+			else {
+				$this->_error = 'json_encode() has failed! (' . json_last_error_msg() . ')';
+			}
 
 		/*** APC ***/
 		} elseif($this->_backend == 1) {
-			return apc_store($key, $this->data, $ttl);
+			if(apc_store($key, $this->data, $ttl)) {
+				return true;
+			}
+			else {
+				$this->_error = 'apc_store(' . $key . ') failed!';
+			}
 		}
+		return false;
 	}
 }
