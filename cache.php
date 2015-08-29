@@ -53,13 +53,8 @@ class Cache512
 			clearstatcache();
 			if(is_file($fname) && is_readable($fname))
 			{
-				//Get expiration timestamp inside the file (1st line)
-				$f = fopen($fname, 'rb');
-				$ttl_timestamp = (int) fgets($f);
-				fclose($f);
-
 				//TTL is not reached
-				if($ttl_timestamp > time())
+				if(filemtime($fname) > time())
 				{
 					return true;
 				}
@@ -87,18 +82,8 @@ class Cache512
 		{
 			/*** File ***/
 			if($this->_backend == 0) {
-				$f = fopen($this->_file_mkname($key), 'rb');
-				//Jump over the timestamp line
-				fgets($f);
-				//Then read real data
-				$buffer = null;
-				while(!feof($f)) {
-					$buffer .= fread($f, 8192);
-				}
-				fclose($f);
-				
 				//Unserialize data
-				$this->data = unserialize($buffer);
+				$this->data = unserialize(file_get_contents($this->_file_mkname($key)));
 				return true;
 
 			/*** APC ***/
@@ -116,13 +101,12 @@ class Cache512
 
 		/*** File ***/
 		if($this->_backend == 0) {
-			$f = fopen($this->_file_mkname($key), 'wb');
-			//Write the expiration timestamp as the 1st line
-			fwrite($f, ((string) (time() + (int) $ttl)) . "\n");
-			//Then write real data
-			fwrite($f, serialize($this->data));
-			fclose($f);
-			
+			$fname = $this->_file_mkname($key);
+
+			//Write data
+			file_put_contents($fname, serialize($this->data));
+			//Set the expiration timestamp as a future ctime
+			touch($fname, time() + (int) $ttl);
 			return true;
 
 		/*** APC ***/
