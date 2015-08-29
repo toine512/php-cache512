@@ -107,7 +107,7 @@ class Cache512
 			}
 		}
 		else {
-			$this->_error = 'Requested key doesn\'t exist.';
+			$this->_error = 'Requested key (' . $key . ') doesn\'t exist.';
 		}
 		return false;
 	}
