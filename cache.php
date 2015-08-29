@@ -23,16 +23,6 @@ class Cache512
 		return str_replace(array('\\', '/', ':', '*', '?', '"', '<', '>', '|'), '_', $key) . '.' . $this->file_ext;
 	}
 
-	/*
-	public function is_error()
-	{
-		if($this->$_error === false)
-		{
-			return false;
-		}
-		return true;
-	}
-	*/
 	public function last_error()
 	{
 		if($this->_error !== false)
